@@ -120,13 +120,14 @@ def test_add_instr():
     }
 
     instructions = ['01095020', '014A5820', '016B0020']
-
+    
+    
     sim, sim_trace = run_simulation(instruction_list=instructions, reg_map=initial_regs)
     rf_result = sim.inspect_mem(rf)
     assert(rf_result[10] == 15)
     assert(rf_result[11] == 30)
     assert(0 not in rf_result)
-
+    #sim_trace.render_trace(symbol_len=20, segement_size=1)
 
 def test_and_instr():
     """

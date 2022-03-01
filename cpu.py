@@ -23,12 +23,12 @@ read_reg2 = pyrtl.WireVector(bitwidth=5, name='read_reg2')
 write_reg = pyrtl.WireVector(bitwidth=5, name='write_reg')
 w_data_reg = pyrtl.WireVector(bitwidth=32, name='w_data_reg')
 sign_ext_immed = pyrtl.WireVector(bitwidth=32, name='sign_ext_immed')
-zero_ext_immed = pyrtl.WireVector(bitwidth=32, name='zerp_ext_immed')
+zero_ext_immed = pyrtl.WireVector(bitwidth=32, name='zero_ext_immed')
 read_data1 = pyrtl.WireVector(bitwidth=32, name='read_data1')
 read_data2 = pyrtl.WireVector(bitwidth=32, name='read_data2')
 data3 = pyrtl.WireVector(bitwidth=32, name='data3')
 result = pyrtl.WireVector(bitwidth=32, name='result')
-w_data_mem = pyrtl.WireVector(bitwidth=32, name='w_data_mem')
+#w_data_mem = pyrtl.WireVector(bitwidth=32, name='w_data_mem')
 read_data_mem = pyrtl.WireVector(bitwidth=32, name='read_data_mem')
 
 op <<= instr[26:32]
@@ -39,7 +39,7 @@ sh <<= instr[6:11]
 funct <<= instr[0:6]
 imm <<= instr[0:16]
 addr <<= instr[0:26]
-read_reg1 <<= rs #may not need?
+read_reg1 <<= rs
 read_reg2 <<= rt
 read_data1 <<= rf[rs]
 read_data2 <<= rf[rt]
@@ -79,7 +79,11 @@ zero = pyrtl.WireVector(bitwidth=1, name='zero')
 
 reg_dst <<= control_signals[9]
 branch <<= control_signals[8]
-reg_write <<= control_signals[7]
+with pyrtl.conditional_assignment:
+    with write_reg == 0:
+        reg_write |= 0
+    with pyrtl.otherwise:
+        reg_write |= control_signals[7]
 alu_src <<= control_signals[5:7]
 mem_write <<= control_signals[4]
 mem_to_reg <<= control_signals[3]
@@ -120,9 +124,9 @@ read_data_mem <<= d_mem[result]
 d_mem[result] <<= pyrtl.MemBlock.EnabledWrite(read_data2,enable=mem_write)
 
 with pyrtl.conditional_assignment:
-    with mem_to_reg == 1:
-        w_data_reg |= result
     with mem_to_reg == 0:
+        w_data_reg |= result
+    with mem_to_reg == 1:
         w_data_reg |= read_data_mem
         
 with pyrtl.conditional_assignment:
@@ -130,6 +134,7 @@ with pyrtl.conditional_assignment:
         write_reg |= rd
     with reg_dst == 0:
         write_reg |= rt
+
 
 rf[write_reg] <<= pyrtl.MemBlock.EnabledWrite(w_data_reg,enable=reg_write)
     
