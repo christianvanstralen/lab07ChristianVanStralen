@@ -299,6 +299,7 @@ def test_beq1_instr():
     sim, sim_trace = run_simulation(instruction_list=instructions, reg_map=initial_regs)
     rf_result = sim.inspect_mem(rf)
 
+    sim_trace.render_trace()
     assert(rf_result[8] == 20)
     assert(6 not in rf_result)
     assert(7 not in rf_result)
@@ -326,9 +327,10 @@ def test_beq2_instr():
     sim, sim_trace = run_simulation(instruction_list=instructions, reg_map=initial_regs)
     rf_result = sim.inspect_mem(rf)
 
-    assert(rf_result[6] == 15)
-    assert(rf_result[7] == 15)
+    sim_trace.render_trace(symbol_len=2)
     assert(rf_result[8] == 20)
+    assert(rf_result[7] == 15)
+    assert(rf_result[6] == 15)
 
 
 def test_beq_negative_offset():
@@ -353,6 +355,7 @@ def test_beq_negative_offset():
     sim, sim_trace = run_simulation(instruction_list=instructions, reg_map=initial_regs)
     rf_result = sim.inspect_mem(rf)
 
+    sim_trace.render_trace()
     assert(rf_result[5] == 20)
     assert(rf_result[6] == 4)
     assert(rf_result[8] == 1)

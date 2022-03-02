@@ -16,7 +16,6 @@ rd = pyrtl.WireVector(bitwidth=5, name='rd')
 sh = pyrtl.WireVector(bitwidth=5, name='sh')
 funct = pyrtl.WireVector(bitwidth=6, name='funct')
 imm = pyrtl.WireVector(bitwidth=16, name='imm')
-addr = pyrtl.WireVector(bitwidth=26, name='addr')
 
 read_reg1 = pyrtl.WireVector(bitwidth=5, name='read_reg1')
 read_reg2 = pyrtl.WireVector(bitwidth=5, name='read_reg2')
@@ -26,7 +25,8 @@ sign_ext_immed = pyrtl.WireVector(bitwidth=32, name='sign_ext_immed')
 zero_ext_immed = pyrtl.WireVector(bitwidth=32, name='zero_ext_immed')
 read_data1 = pyrtl.WireVector(bitwidth=32, name='read_data1')
 read_data2 = pyrtl.WireVector(bitwidth=32, name='read_data2')
-data3 = pyrtl.WireVector(bitwidth=32, name='data3')
+alu_input1 = pyrtl.WireVector(bitwidth=32, name='alu_input1')
+alu_input2 = pyrtl.WireVector(bitwidth=32, name='alu_input2')
 result = pyrtl.WireVector(bitwidth=32, name='result')
 #w_data_mem = pyrtl.WireVector(bitwidth=32, name='w_data_mem')
 read_data_mem = pyrtl.WireVector(bitwidth=32, name='read_data_mem')
@@ -38,7 +38,6 @@ rd <<= instr[11:16]
 sh <<= instr[6:11]
 funct <<= instr[0:6]
 imm <<= instr[0:16]
-addr <<= instr[0:26]
 read_reg1 <<= rs
 read_reg2 <<= rt
 read_data1 <<= rf[rs]
@@ -77,66 +76,72 @@ mem_to_reg = pyrtl.WireVector(bitwidth=1, name='mem_to_reg')
 alu_op = pyrtl.WireVector(bitwidth=3, name='alu_op')
 zero = pyrtl.WireVector(bitwidth=1, name='zero')
 
+
 reg_dst <<= control_signals[9]
-branch <<= control_signals[8]
-with pyrtl.conditional_assignment:
-    with write_reg == 0:
-        reg_write |= 0
-    with pyrtl.otherwise:
-        reg_write |= control_signals[7]
-alu_src <<= control_signals[5:7]
-mem_write <<= control_signals[4]
-mem_to_reg <<= control_signals[3]
-alu_op <<= control_signals[0:3]
-
-with pyrtl.conditional_assignment:
-    with branch == 1:
-        with zero == 1:
-            PC.next |= PC + 1 + sign_ext_immed
-    with branch == 0:
-        PC.next |= PC + 1
-
-
-with pyrtl.conditional_assignment:
-    with alu_src == 0:
-        data3 |= read_data2
-    with alu_src == 1:
-        data3 |= sign_ext_immed
-    with alu_src == 2:
-        data3 |= zero_ext_immed
-
-with pyrtl.conditional_assignment:
-    with alu_op == 0: #add (add, addi, lw, sw)
-        result |= read_data1 + data3
-    with alu_op == 1: #and (and)
-        result |= read_data1 & data3
-    with alu_op == 2: #sll (lui)
-        result |= pyrtl.shift_left_logical(data3, Const(16))
-    with alu_op == 3: #or (ori)
-        result |= read_data1 | data3
-    with alu_op == 4: #slt (slt)
-        result |= pyrtl.corecircuits.signed_lt(read_data1,data3)
-    with alu_op == 7: #equal (beq)
-        with read_data1 == data3:
-            zero |= 1
-
-read_data_mem <<= d_mem[result]
-d_mem[result] <<= pyrtl.MemBlock.EnabledWrite(read_data2,enable=mem_write)
-
-with pyrtl.conditional_assignment:
-    with mem_to_reg == 0:
-        w_data_reg |= result
-    with mem_to_reg == 1:
-        w_data_reg |= read_data_mem
-        
 with pyrtl.conditional_assignment:
     with reg_dst == 1:
         write_reg |= rd
     with reg_dst == 0:
         write_reg |= rt
 
+        
+branch <<= control_signals[8]
+with pyrtl.conditional_assignment:
+    with branch & zero == 1:
+        PC.next |= PC + 1 + sign_ext_immed
+    with branch & zero == 0:
+        PC.next |= PC + 1
 
+        
+#reg_write
+with pyrtl.conditional_assignment:            
+    with write_reg == 0: #if write register is $zero, make reg_write 0
+        reg_write |= 0
+    with pyrtl.otherwise:
+        reg_write |= control_signals[7]
 rf[write_reg] <<= pyrtl.MemBlock.EnabledWrite(w_data_reg,enable=reg_write)
+
+        
+alu_src <<= control_signals[5:7]
+alu_input1 <<= read_data1
+with pyrtl.conditional_assignment:
+    with alu_src == 0:
+        alu_input2 |= read_data2
+    with alu_src == 1:
+        alu_input2 |= sign_ext_immed
+    with alu_src == 2:
+        alu_input2 |= zero_ext_immed
+
+
+mem_write <<= control_signals[4]
+read_data_mem <<= d_mem[result]
+d_mem[result] <<= pyrtl.MemBlock.EnabledWrite(read_data2,enable=mem_write)
+
+
+mem_to_reg <<= control_signals[3]
+with pyrtl.conditional_assignment:
+    with mem_to_reg == 0:
+        w_data_reg |= result
+    with mem_to_reg == 1:
+        w_data_reg |= read_data_mem
+
+
+alu_op <<= control_signals[0:3]
+with pyrtl.conditional_assignment:
+    with alu_op == 0: #add (add, addi, lw, sw)
+        result |= alu_input1 + alu_input2
+    with alu_op == 1: #and (and)
+        result |= alu_input1 & alu_input2
+    with alu_op == 2: #sll (lui)
+        result |= pyrtl.shift_left_logical(alu_input2, Const(16))
+    with alu_op == 3: #or (ori)
+        result |= alu_input1 | alu_input2
+    with alu_op == 4: #slt (slt)
+        result |= pyrtl.corecircuits.signed_lt(alu_input1,alu_input2)
+    with alu_op == 7: #equal (beq)
+        with alu_input1 - alu_input2 == 0:
+            zero |= 1
+
     
     
         
